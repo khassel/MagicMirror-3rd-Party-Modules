@@ -14,22 +14,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
-      image: moby/buildkit:latest
+      image: moby/buildkit:rootless
       options: --privileged
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
       - name: Build container
         run: |
+          cd /home/user
+          # todo: change git clone: set branch, single-branch, only last commit
+          git clone https://github.com/$GITHUB_REPOSITORY repo
           # registry credentials
-          export DOCKER_CONFIG="$(pwd)/container"
+          export DOCKER_CONFIG="/home/user"
           echo "{\"auths\":{\"ghcr.io\":{\"auth\":\"$(echo -n ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} | base64 -w 0)\"}}}" > $DOCKER_CONFIG/config.json
           # ugly workaround for converting content of $GITHUB_REPOSITORY (= `MagicMirrorOrg/MagicMirror-3rd-Party-Modules`)
           REPO="$(echo $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')"
           # build
           buildctl-daemonless.sh build \
+            --oci-worker-no-process-sandbox \
             --progress plain \
             --frontend=dockerfile.v0 \
-            --local context=. \
-            --local dockerfile=container \
+            --local context=repo \
+            --local dockerfile=repo/container \
             --output type=image,"\"name=ghcr.io/${REPO}:${{ github.ref_name }}\",push=true"
